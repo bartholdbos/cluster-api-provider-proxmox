@@ -100,6 +100,31 @@ func (c *APIClient) CloneVM(ctx context.Context, templateID int, clone capmox.VM
 	return capmox.VMCloneResponse{NewID: int64(newID), Task: task}, nil
 }
 
+func (c *APIClient) ImportVM(ctx context.Context, file string, clone capmox.VMCloneRequest) (capmox.VMCloneResponse, error) {
+	// get the node
+	node := (&proxmox.Node{}).New(c.Client, "pve01")
+	if err := node.Status(ctx); err != nil {
+		return capmox.VMCloneResponse{}, fmt.Errorf("cannot find node with name %s: %w", "pve01", err)
+	}
+
+	task, err := node.NewVirtualMachine(ctx, 120,
+		proxmox.VirtualMachineOption{Name: "name", Value: clone.Name},
+		proxmox.VirtualMachineOption{Name: "description", Value: clone.Description},
+		proxmox.VirtualMachineOption{Name: "node", Value: "pve01"},
+		proxmox.VirtualMachineOption{Name: "agent", Value: "enabled=1"},
+		proxmox.VirtualMachineOption{Name: "cpu", Value: "cputype=x86-64-v2-AES"},
+		proxmox.VirtualMachineOption{Name: "ostype", Value: "l26"},
+
+		//proxmox.VirtualMachineOption{Name: "pool", Value: clone.Pool},
+		proxmox.VirtualMachineOption{Name: "virtio0", Value: "vmstore:0,import-from=local:" + file},
+	)
+	if err != nil {
+		return capmox.VMCloneResponse{}, fmt.Errorf("unable to create new vm: %w", err)
+	}
+
+	return capmox.VMCloneResponse{int64(120), task}, nil
+}
+
 // ConfigureVM updates a VMs settings.
 func (c *APIClient) ConfigureVM(ctx context.Context, vm *proxmox.VirtualMachine, options ...capmox.VirtualMachineOption) (*proxmox.Task, error) {
 	task, err := vm.Config(ctx, options...)

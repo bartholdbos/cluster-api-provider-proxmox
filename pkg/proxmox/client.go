@@ -26,6 +26,7 @@ import (
 // Client Global Proxmox client interface.
 type Client interface {
 	CloneVM(ctx context.Context, templateID int, clone VMCloneRequest) (VMCloneResponse, error)
+	ImportVM(ctx context.Context, file string, clone VMCloneRequest) (VMCloneResponse, error)
 
 	ConfigureVM(ctx context.Context, vm *proxmox.VirtualMachine, options ...VirtualMachineOption) (*proxmox.Task, error)
 

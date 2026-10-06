@@ -1446,18 +1446,10 @@ spec:
             - network
             type: object
             x-kubernetes-validations:
-            - message: must define either a SourceNode with a TemplateID or a TemplateSelector
-              rule: '[has(self.sourceNode), has(self.templateSelector)].exists_one(c,
-                c)'
-            - message: must define either a SourceNode with a TemplateID or a TemplateSelector
-              rule: '[has(self.templateID), has(self.templateSelector)].exists_one(c,
-                c)'
             - message: Must set full=true when specifying format
               rule: self.full || !has(self.format)
             - message: Must set full=true when specifying storage
               rule: self.full || !has(self.storage)
-            - message: Must specify either templateID or templateSelector
-              rule: has(self.templateSelector) || (has(self.templateID) && has(self.sourceNode))
           status:
             description: status is the status of the Proxmox machine.
             properties:

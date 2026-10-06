@@ -1327,9 +1327,6 @@ spec:
                       rule: self.full || !has(self.format)
                     - message: Must set full=true when specifying storage
                       rule: self.full || !has(self.storage)
-                    - message: Must specify either templateID or templateSelector
-                      rule: has(self.templateSelector) || (has(self.templateID) &&
-                        has(self.sourceNode))
                 required:
                 - spec
                 type: object

@@ -185,7 +185,6 @@ const (
 )
 
 // TemplateSource defines the source of the template VM.
-// +kubebuilder:validation:XValidation:rule="has(self.templateSelector) || (has(self.templateID) && has(self.sourceNode))",message="Must specify either templateID or templateSelector"
 type TemplateSource struct {
 	// sourceNode is the initially selected proxmox node.
 	// This node will be used to locate the template VM, which will
@@ -617,8 +616,6 @@ type ProxmoxMachine struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// spec is the Proxmox machine spec.
-	// +kubebuilder:validation:XValidation:rule="[has(self.sourceNode), has(self.templateSelector)].exists_one(c, c)",message="must define either a SourceNode with a TemplateID or a TemplateSelector"
-	// +kubebuilder:validation:XValidation:rule="[has(self.templateID), has(self.templateSelector)].exists_one(c, c)",message="must define either a SourceNode with a TemplateID or a TemplateSelector"
 	// +required
 	Spec ProxmoxMachineSpec `json:"spec,omitzero"`
 

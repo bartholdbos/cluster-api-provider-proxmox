@@ -496,26 +496,13 @@ func createVM(ctx context.Context, scope *scope.MachineScope) (proxmox.VMCloneRe
 		}
 	}
 
-	templateID := scope.ProxmoxMachine.GetTemplateID()
-	if templateID == -1 {
-		var err error
-		templateSelectorTags := scope.ProxmoxMachine.GetTemplateSelectorTags()
-		templateMatchPolicy := string(scope.ProxmoxMachine.GetTemplateMatchPolicy())
-		options.Node, templateID, err = scope.InfraCluster.ProxmoxClient.FindVMTemplateByTags(ctx, templateSelectorTags, templateMatchPolicy)
-
-		if err != nil {
-			if errors.Is(err, goproxmox.ErrTemplateNotFound) {
-				conditions.Set(scope.ProxmoxMachine, metav1.Condition{
-					Type:    infrav1.ProxmoxMachineVirtualMachineProvisionedCondition,
-					Status:  metav1.ConditionFalse,
-					Reason:  infrav1.ProxmoxMachineVirtualMachineProvisionedVMProvisionFailedReason,
-					Message: err.Error(),
-				})
-			}
-			return proxmox.VMCloneResponse{}, err
-		}
+	var res proxmox.VMCloneResponse
+	if scope.ProxmoxMachine.GetTemplateID() == -1 && scope.ProxmoxMachine.GetTemplateSelectorTags() == nil {
+		res, err = importVM(ctx, scope, options)
+	} else {
+		res, err = cloneVM(ctx, scope, options)
 	}
-	res, err := scope.InfraCluster.ProxmoxClient.CloneVM(ctx, int(templateID), options)
+
 	if err != nil {
 		return res, err
 	}
@@ -535,6 +522,33 @@ func createVM(ctx context.Context, scope *scope.MachineScope) (proxmox.VMCloneRe
 	}, util.IsControlPlaneMachine(scope.Machine))
 
 	return res, scope.InfraCluster.PatchObject()
+}
+
+func importVM(ctx context.Context, scope *scope.MachineScope, options proxmox.VMCloneRequest) (proxmox.VMCloneResponse, error) {
+	return scope.InfraCluster.ProxmoxClient.ImportVM(ctx, "import/talos.qcow2", options)
+}
+
+func cloneVM(ctx context.Context, scope *scope.MachineScope, options proxmox.VMCloneRequest) (proxmox.VMCloneResponse, error) {
+	templateID := scope.ProxmoxMachine.GetTemplateID()
+	if templateID == -1 {
+		var err error
+		templateSelectorTags := scope.ProxmoxMachine.GetTemplateSelectorTags()
+		templateMatchPolicy := string(scope.ProxmoxMachine.GetTemplateMatchPolicy())
+		options.Node, templateID, err = scope.InfraCluster.ProxmoxClient.FindVMTemplateByTags(ctx, templateSelectorTags, templateMatchPolicy)
+
+		if err != nil {
+			if errors.Is(err, goproxmox.ErrTemplateNotFound) {
+				conditions.Set(scope.ProxmoxMachine, metav1.Condition{
+					Type:    infrav1.ProxmoxMachineVirtualMachineProvisionedCondition,
+					Status:  metav1.ConditionFalse,
+					Reason:  infrav1.ProxmoxMachineVirtualMachineProvisionedVMProvisionFailedReason,
+					Message: err.Error(),
+				})
+			}
+			return proxmox.VMCloneResponse{}, err
+		}
+	}
+	return scope.InfraCluster.ProxmoxClient.CloneVM(ctx, int(templateID), options)
 }
 
 func getVMID(ctx context.Context, scope *scope.MachineScope) (int64, error) {
