@@ -374,6 +374,11 @@ func reconcileVirtualMachineConfig(ctx context.Context, machineScope *scope.Mach
 	vmOptions := buildOptions(machineScope)
 
 	if len(vmOptions) == 0 {
+		conditions.Set(machineScope.ProxmoxMachine, metav1.Condition{
+			Type:   infrav1.ProxmoxMachineVirtualMachineProvisionedCondition,
+			Status: metav1.ConditionFalse,
+			Reason: infrav1.ProxmoxMachineVirtualMachineProvisionedWaitingForDiskReconciliationReason,
+		})
 		return false, nil
 	}
 
