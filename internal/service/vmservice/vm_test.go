@@ -133,7 +133,7 @@ func TestEnsureVirtualMachine_CreateVM_FullOptions(t *testing.T) {
 		Storage:     "storage",
 		Target:      "node2",
 	}
-	response := proxmox.VMCloneResponse{NewID: 123, Task: newTask()}
+	response := proxmox.VMCreateResponse{NewID: 123, Task: newTask()}
 	proxmoxClient.EXPECT().CloneVM(context.Background(), 123, expectedOptions).Return(response, nil).Once()
 	proxmoxClient.EXPECT().GetReservableMemoryBytes(context.Background(), "node2", int64(100)).Return(^uint64(0), nil).Once()
 
@@ -185,7 +185,7 @@ func TestEnsureVirtualMachine_CreateVM_FullOptions_TemplateSelector(t *testing.T
 		Return("node1", 123, nil).
 		Once()
 
-	response := proxmox.VMCloneResponse{NewID: 123, Task: newTask()}
+	response := proxmox.VMCreateResponse{NewID: 123, Task: newTask()}
 	proxmoxClient.EXPECT().CloneVM(context.Background(), 123, expectedOptions).Return(response, nil).Once()
 	proxmoxClient.EXPECT().GetReservableMemoryBytes(context.Background(), "node1", int64(100)).Return(0, nil).Once()
 	proxmoxClient.EXPECT().GetReservableMemoryBytes(context.Background(), "node2", int64(100)).Return(^uint64(0), nil).Once()
@@ -242,7 +242,7 @@ func TestEnsureVirtualMachine_CreateVM_SelectNode(t *testing.T) {
 	t.Cleanup(func() { selectNextNode = scheduler.ScheduleVM })
 
 	expectedOptions := proxmox.VMCloneRequest{Node: "node1", Name: "test", Target: "node3", Full: true}
-	response := proxmox.VMCloneResponse{NewID: 123, Task: newTask()}
+	response := proxmox.VMCreateResponse{NewID: 123, Task: newTask()}
 	proxmoxClient.EXPECT().CloneVM(context.Background(), 123, expectedOptions).Return(response, nil).Once()
 
 	requeue, err := ensureVirtualMachine(context.Background(), machineScope)
@@ -265,7 +265,7 @@ func TestEnsureVirtualMachine_CreateVM_SelectNode_MachineAllowedNodes(t *testing
 	t.Cleanup(func() { selectNextNode = scheduler.ScheduleVM })
 
 	expectedOptions := proxmox.VMCloneRequest{Node: "node1", Name: "test", Target: "node2", Full: true}
-	response := proxmox.VMCloneResponse{NewID: 123, Task: newTask()}
+	response := proxmox.VMCreateResponse{NewID: 123, Task: newTask()}
 	proxmoxClient.EXPECT().CloneVM(context.Background(), 123, expectedOptions).Return(response, nil).Once()
 
 	requeue, err := ensureVirtualMachine(context.Background(), machineScope)
@@ -302,7 +302,7 @@ func TestEnsureVirtualMachine_CreateVM_VMIDRange(t *testing.T) {
 	}
 
 	expectedOptions := proxmox.VMCloneRequest{Node: "node1", NewID: 1001, Name: "test", Full: true}
-	response := proxmox.VMCloneResponse{Task: newTask(), NewID: int64(1001)}
+	response := proxmox.VMCreateResponse{Task: newTask(), NewID: int64(1001)}
 	proxmoxClient.Mock.On("CheckID", context.Background(), int64(1000)).Return(false, nil)
 	proxmoxClient.Mock.On("CheckID", context.Background(), int64(1001)).Return(true, nil)
 	proxmoxClient.EXPECT().CloneVM(context.Background(), 123, expectedOptions).Return(response, nil).Once()
@@ -381,7 +381,7 @@ func TestEnsureVirtualMachine_CreateVM_VMIDRangeCheckExisting(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedOptions := proxmox.VMCloneRequest{Node: "node1", NewID: 1002, Name: "test", Full: true}
-	response := proxmox.VMCloneResponse{Task: newTask(), NewID: int64(1002)}
+	response := proxmox.VMCreateResponse{Task: newTask(), NewID: int64(1002)}
 	proxmoxClient.EXPECT().CloneVM(context.Background(), 123, expectedOptions).Return(response, nil).Once()
 	proxmoxClient.Mock.On("CheckID", context.Background(), int64(1001)).Return(false, nil).Once()
 	proxmoxClient.Mock.On("CheckID", context.Background(), int64(1002)).Return(true, nil).Once()
@@ -861,7 +861,7 @@ func TestReconcileVM_StateMachine(t *testing.T) {
 		SnapName:    "snap",
 		Storage:     "storage",
 		Target:      "node2",
-	}).Return(proxmox.VMCloneResponse{NewID: 123, Task: task}, nil).Once()
+	}).Return(proxmox.VMCreateResponse{NewID: 123, Task: task}, nil).Once()
 
 	result, err := ReconcileVM(context.Background(), machineScope)
 	require.NoError(t, err)

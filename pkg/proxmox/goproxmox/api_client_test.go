@@ -223,7 +223,7 @@ func TestProxmoxAPIClient_CloneVM(t *testing.T) {
 				require.Equal(t, test.err, err.Error())
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, capmox.VMCloneResponse{NewID: 101, Task: nil},
+				require.Equal(t, capmox.VMCreateResponse{NewID: 101, Task: nil},
 					cloneresponse)
 			}
 		})

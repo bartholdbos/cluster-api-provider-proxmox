@@ -82,22 +82,22 @@ func (_c *MockClient_CheckID_Call) RunAndReturn(run func(context.Context, int64)
 }
 
 // CloneVM provides a mock function with given fields: ctx, templateID, clone
-func (_m *MockClient) CloneVM(ctx context.Context, templateID int, clone proxmox.VMCloneRequest) (proxmox.VMCloneResponse, error) {
+func (_m *MockClient) CloneVM(ctx context.Context, templateID int, clone proxmox.VMCloneRequest) (proxmox.VMCreateResponse, error) {
 	ret := _m.Called(ctx, templateID, clone)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CloneVM")
 	}
 
-	var r0 proxmox.VMCloneResponse
+	var r0 proxmox.VMCreateResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int, proxmox.VMCloneRequest) (proxmox.VMCloneResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int, proxmox.VMCloneRequest) (proxmox.VMCreateResponse, error)); ok {
 		return rf(ctx, templateID, clone)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int, proxmox.VMCloneRequest) proxmox.VMCloneResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int, proxmox.VMCloneRequest) proxmox.VMCreateResponse); ok {
 		r0 = rf(ctx, templateID, clone)
 	} else {
-		r0 = ret.Get(0).(proxmox.VMCloneResponse)
+		r0 = ret.Get(0).(proxmox.VMCreateResponse)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, int, proxmox.VMCloneRequest) error); ok {
@@ -129,12 +129,12 @@ func (_c *MockClient_CloneVM_Call) Run(run func(ctx context.Context, templateID 
 	return _c
 }
 
-func (_c *MockClient_CloneVM_Call) Return(_a0 proxmox.VMCloneResponse, _a1 error) *MockClient_CloneVM_Call {
+func (_c *MockClient_CloneVM_Call) Return(_a0 proxmox.VMCreateResponse, _a1 error) *MockClient_CloneVM_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockClient_CloneVM_Call) RunAndReturn(run func(context.Context, int, proxmox.VMCloneRequest) (proxmox.VMCloneResponse, error)) *MockClient_CloneVM_Call {
+func (_c *MockClient_CloneVM_Call) RunAndReturn(run func(context.Context, int, proxmox.VMCloneRequest) (proxmox.VMCreateResponse, error)) *MockClient_CloneVM_Call {
 	_c.Call.Return(run)
 	return _c
 }

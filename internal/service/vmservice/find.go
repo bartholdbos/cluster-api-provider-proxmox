@@ -73,6 +73,7 @@ func FindVM(ctx context.Context, scope *scope.MachineScope) (*proxmox.VirtualMac
 			return nil, ErrVMNotInitialized
 		}
 		if vm.Name != scope.ProxmoxMachine.GetName() {
+			scope.Logger.Info(fmt.Sprintf("vm.Name: %s, getName: %s", vm.Name, scope.ProxmoxMachine.GetName()))
 			if vmIDCollisionIsRecoverable(scope) {
 				return nil, fmt.Errorf("vmid %d resolves to VM %q, expected %q: %w",
 					vmID, vm.Name, scope.ProxmoxMachine.GetName(), ErrVMIDCollision)

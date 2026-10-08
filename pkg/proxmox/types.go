@@ -32,8 +32,14 @@ type VMCloneRequest struct {
 	Target      string `json:"target,omitempty"`
 }
 
-// VMCloneResponse response returned when cloning a VM.
-type VMCloneResponse struct {
+type VMCreateOptions struct {
+	VMID   int
+	Name   string
+	Target string
+}
+
+// VMCreateResponse response returned when cloning or importing a VM.
+type VMCreateResponse struct {
 	NewID int64         `json:"newId,omitempty"`
 	Task  *proxmox.Task `json:"task,omitempty"`
 }

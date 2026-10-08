@@ -19,9 +19,11 @@ package vmservice
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 
+	proxmox2 "github.com/luthermonson/go-proxmox"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -300,31 +302,22 @@ func reconcileDisks(ctx context.Context, machineScope *scope.MachineScope) error
 	return nil
 }
 
-func reconcileVirtualMachineConfig(ctx context.Context, machineScope *scope.MachineScope) (requeue bool, err error) {
-	if conditions.GetReason(machineScope.ProxmoxMachine, infrav1.ProxmoxMachineVirtualMachineProvisionedCondition) != infrav1.ProxmoxMachineVirtualMachineProvisionedCloningReason {
-		// Machine is in the wrong state to reconcile, we only reconcile Cloning VMs.
-		return false, nil
+func buildOptions(machineScope *scope.MachineScope) (vmOptions []proxmox.VirtualMachineOption) {
+	var vmConfig *proxmox2.VirtualMachineConfig
+	if machineScope.VirtualMachine != nil {
+		vmConfig = machineScope.VirtualMachine.VirtualMachineConfig
 	}
 
-	if machineScope.VirtualMachine.IsRunning() || ptr.Deref(machineScope.ProxmoxMachine.Status.Initialization.Provisioned, false) {
-		// We only want to do this before the machine was started or is ready
-		return false, nil
-	}
-
-	vmConfig := machineScope.VirtualMachine.VirtualMachineConfig
-
-	// CPU & Memory
-	var vmOptions []proxmox.VirtualMachineOption
 	sockets := ptr.Deref(machineScope.ProxmoxMachine.Spec.NumSockets, 0)
 	cores := ptr.Deref(machineScope.ProxmoxMachine.Spec.NumCores, 0)
 	memory := ptr.Deref(machineScope.ProxmoxMachine.Spec.MemoryMiB, 0)
-	if sockets > 0 && ptr.Deref(vmConfig.Sockets, 0) != int(sockets) {
+	if sockets > 0 && (vmConfig == nil || ptr.Deref(vmConfig.Sockets, 0) != int(sockets)) {
 		vmOptions = append(vmOptions, proxmox.VirtualMachineOption{Name: optionSockets, Value: sockets})
 	}
-	if cores > 0 && ptr.Deref(vmConfig.Cores, 0) != int(cores) {
+	if cores > 0 && (vmConfig == nil || ptr.Deref(vmConfig.Cores, 0) != int(cores)) {
 		vmOptions = append(vmOptions, proxmox.VirtualMachineOption{Name: optionCores, Value: cores})
 	}
-	if memory > 0 && int(vmConfig.Memory) != int(memory) {
+	if memory > 0 && (vmConfig == nil || int(vmConfig.Memory) != int(memory)) {
 		vmOptions = append(vmOptions, proxmox.VirtualMachineOption{Name: optionMemory, Value: memory})
 	}
 
@@ -336,7 +329,7 @@ func reconcileVirtualMachineConfig(ctx context.Context, machineScope *scope.Mach
 	}
 
 	// Network vmbrs.
-	if machineScope.ProxmoxMachine.Spec.Network != nil && shouldUpdateNetworkDevices(machineScope) {
+	if machineScope.ProxmoxMachine.Spec.Network != nil && (vmConfig == nil || shouldUpdateNetworkDevices(machineScope)) {
 		devices := machineScope.ProxmoxMachine.Spec.Network.NetworkDevices
 		for _, v := range devices {
 			vmOptions = append(vmOptions, proxmox.VirtualMachineOption{
@@ -348,17 +341,37 @@ func reconcileVirtualMachineConfig(ctx context.Context, machineScope *scope.Mach
 
 	// custom tags
 	if machineScope.ProxmoxMachine.Spec.Tags != nil {
-		machineScope.VirtualMachine.SplitTags()
-		length := len(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice)
-		for _, tag := range machineScope.ProxmoxMachine.Spec.Tags {
-			if !machineScope.VirtualMachine.HasTag(tag) {
-				machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice = append(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice, tag)
+		if vmConfig == nil {
+			vmOptions = append(vmOptions, proxmox.VirtualMachineOption{Name: optionTags, Value: strings.Join(machineScope.ProxmoxMachine.Spec.Tags, ";")})
+		} else {
+			machineScope.VirtualMachine.SplitTags()
+			length := len(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice)
+			for _, tag := range machineScope.ProxmoxMachine.Spec.Tags {
+				if !machineScope.VirtualMachine.HasTag(tag) {
+					machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice = append(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice, tag)
+				}
+			}
+			if len(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice) > length {
+				vmOptions = append(vmOptions, proxmox.VirtualMachineOption{Name: optionTags, Value: strings.Join(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice, ";")})
 			}
 		}
-		if len(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice) > length {
-			vmOptions = append(vmOptions, proxmox.VirtualMachineOption{Name: optionTags, Value: strings.Join(machineScope.VirtualMachine.VirtualMachineConfig.TagsSlice, ";")})
-		}
 	}
+
+	return
+}
+
+func reconcileVirtualMachineConfig(ctx context.Context, machineScope *scope.MachineScope) (requeue bool, err error) {
+	if conditions.GetReason(machineScope.ProxmoxMachine, infrav1.ProxmoxMachineVirtualMachineProvisionedCondition) != infrav1.ProxmoxMachineVirtualMachineProvisionedCloningReason {
+		// Machine is in the wrong state to reconcile, we only reconcile Cloning VMs.
+		return false, nil
+	}
+
+	if machineScope.VirtualMachine.IsRunning() || ptr.Deref(machineScope.ProxmoxMachine.Status.Initialization.Provisioned, false) {
+		// We only want to do this before the machine was started or is ready
+		return false, nil
+	}
+
+	vmOptions := buildOptions(machineScope)
 
 	if len(vmOptions) == 0 {
 		return false, nil
@@ -439,7 +452,7 @@ func getClusterAPIMachineAddresses(scope *scope.MachineScope) ([]clusterv1.Machi
 	return addresses, nil
 }
 
-func createVM(ctx context.Context, scope *scope.MachineScope) (proxmox.VMCloneResponse, error) {
+func createVM(ctx context.Context, scope *scope.MachineScope) (proxmox.VMCreateResponse, error) {
 	vmid, err := getVMID(ctx, scope)
 	if err != nil {
 		if errors.Is(err, ErrNoVMIDInRangeFree) {
@@ -450,12 +463,80 @@ func createVM(ctx context.Context, scope *scope.MachineScope) (proxmox.VMCloneRe
 				Message: err.Error(),
 			})
 		}
-		return proxmox.VMCloneResponse{}, err
+		return proxmox.VMCreateResponse{}, err
 	}
 
+	options := proxmox.VMCreateOptions{
+		VMID: int(vmid),
+		Name: scope.ProxmoxMachine.GetName(),
+	}
+
+	if scope.InfraCluster.ProxmoxCluster.Status.NodeLocations == nil {
+		scope.InfraCluster.ProxmoxCluster.Status.NodeLocations = new(infrav1.NodeLocations)
+	}
+
+	if len(scope.InfraCluster.ProxmoxCluster.Spec.AllowedNodes) > 0 || len(scope.ProxmoxMachine.Spec.AllowedNodes) > 0 {
+		var err error
+		options.Target, err = selectNextNode(ctx, scope)
+		if err != nil {
+			if errors.As(err, &scheduler.InsufficientMemoryError{}) {
+				conditions.Set(scope.ProxmoxMachine, metav1.Condition{
+					Type:    infrav1.ProxmoxMachineVirtualMachineProvisionedCondition,
+					Status:  metav1.ConditionFalse,
+					Reason:  infrav1.ProxmoxMachineVirtualMachineProvisionedVMProvisionFailedReason,
+					Message: err.Error(),
+				})
+			}
+			return proxmox.VMCreateResponse{}, err
+		}
+	}
+
+	node := options.Target
+	var res proxmox.VMCreateResponse
+	if scope.ProxmoxMachine.GetTemplateID() == -1 && scope.ProxmoxMachine.GetTemplateSelectorTags() == nil {
+		res, err = importVM(ctx, scope, options)
+	} else {
+		var tplNode string
+		res, tplNode, err = cloneVM(ctx, scope, options)
+		if node == "" {
+			node = tplNode
+		}
+	}
+
+	if err != nil {
+		return res, err
+	}
+
+	scope.ProxmoxMachine.Status.ProxmoxNode = new(node)
+
+	// if the creation was successful, we store the information about the node in the
+	// cluster status
+	scope.InfraCluster.ProxmoxCluster.AddNodeLocation(infrav1.NodeLocation{
+		Machine: corev1.LocalObjectReference{Name: options.Name},
+		Node:    node,
+	}, util.IsControlPlaneMachine(scope.Machine))
+
+	return res, scope.InfraCluster.PatchObject()
+}
+
+func importVM(ctx context.Context, scope *scope.MachineScope, createOptions proxmox.VMCreateOptions) (proxmox.VMCreateResponse, error) {
+	options := buildOptions(scope)
+	options = append(options, proxmox.VirtualMachineOption{Name: "node", Value: createOptions.Target})
+	options = append(options, proxmox.VirtualMachineOption{Name: "name", Value: createOptions.Name})
+	options = append(options, proxmox.VirtualMachineOption{Name: "cpu", Value: "cputype=x86-64-v2-AES"})
+	options = append(options, proxmox.VirtualMachineOption{Name: "ostype", Value: "l26"})
+	options = append(options, proxmox.VirtualMachineOption{Name: "agent", Value: "enabled=1"})
+	options = append(options, proxmox.VirtualMachineOption{Name: "virtio0", Value: fmt.Sprintf("%s:0,import-from=local:%s", "vmstore", "import/talos.qcow2")})
+
+	fmt.Println(options)
+
+	return scope.InfraCluster.ProxmoxClient.ImportVM(ctx, createOptions.VMID, options...)
+}
+
+func cloneVM(ctx context.Context, scope *scope.MachineScope, createOptions proxmox.VMCreateOptions) (resp proxmox.VMCreateResponse, node string, err error) {
 	options := proxmox.VMCloneRequest{
 		Node:  scope.ProxmoxMachine.GetSourceNode(),
-		NewID: int(vmid),
+		NewID: createOptions.VMID,
 		Name:  scope.ProxmoxMachine.GetName(),
 	}
 
@@ -476,65 +557,14 @@ func createVM(ctx context.Context, scope *scope.MachineScope) (proxmox.VMCloneRe
 		options.Storage = *scope.ProxmoxMachine.Spec.Storage
 	}
 
-	if scope.InfraCluster.ProxmoxCluster.Status.NodeLocations == nil {
-		scope.InfraCluster.ProxmoxCluster.Status.NodeLocations = new(infrav1.NodeLocations)
-	}
+	options.Target = createOptions.Target
 
-	if len(scope.InfraCluster.ProxmoxCluster.Spec.AllowedNodes) > 0 || len(scope.ProxmoxMachine.Spec.AllowedNodes) > 0 {
-		var err error
-		options.Target, err = selectNextNode(ctx, scope)
-		if err != nil {
-			if errors.As(err, &scheduler.InsufficientMemoryError{}) {
-				conditions.Set(scope.ProxmoxMachine, metav1.Condition{
-					Type:    infrav1.ProxmoxMachineVirtualMachineProvisionedCondition,
-					Status:  metav1.ConditionFalse,
-					Reason:  infrav1.ProxmoxMachineVirtualMachineProvisionedVMProvisionFailedReason,
-					Message: err.Error(),
-				})
-			}
-			return proxmox.VMCloneResponse{}, err
-		}
-	}
-
-	var res proxmox.VMCloneResponse
-	if scope.ProxmoxMachine.GetTemplateID() == -1 && scope.ProxmoxMachine.GetTemplateSelectorTags() == nil {
-		res, err = importVM(ctx, scope, options)
-	} else {
-		res, err = cloneVM(ctx, scope, options)
-	}
-
-	if err != nil {
-		return res, err
-	}
-
-	node := options.Target
-	if node == "" {
-		node = options.Node
-	}
-
-	scope.ProxmoxMachine.Status.ProxmoxNode = new(node)
-
-	// if the creation was successful, we store the information about the node in the
-	// cluster status
-	scope.InfraCluster.ProxmoxCluster.AddNodeLocation(infrav1.NodeLocation{
-		Machine: corev1.LocalObjectReference{Name: options.Name},
-		Node:    node,
-	}, util.IsControlPlaneMachine(scope.Machine))
-
-	return res, scope.InfraCluster.PatchObject()
-}
-
-func importVM(ctx context.Context, scope *scope.MachineScope, options proxmox.VMCloneRequest) (proxmox.VMCloneResponse, error) {
-	return scope.InfraCluster.ProxmoxClient.ImportVM(ctx, "import/talos.qcow2", options)
-}
-
-func cloneVM(ctx context.Context, scope *scope.MachineScope, options proxmox.VMCloneRequest) (proxmox.VMCloneResponse, error) {
 	templateID := scope.ProxmoxMachine.GetTemplateID()
 	if templateID == -1 {
-		var err error
 		templateSelectorTags := scope.ProxmoxMachine.GetTemplateSelectorTags()
 		templateMatchPolicy := string(scope.ProxmoxMachine.GetTemplateMatchPolicy())
 		options.Node, templateID, err = scope.InfraCluster.ProxmoxClient.FindVMTemplateByTags(ctx, templateSelectorTags, templateMatchPolicy)
+		node = options.Node
 
 		if err != nil {
 			if errors.Is(err, goproxmox.ErrTemplateNotFound) {
@@ -545,10 +575,14 @@ func cloneVM(ctx context.Context, scope *scope.MachineScope, options proxmox.VMC
 					Message: err.Error(),
 				})
 			}
-			return proxmox.VMCloneResponse{}, err
+
+			return
 		}
 	}
-	return scope.InfraCluster.ProxmoxClient.CloneVM(ctx, int(templateID), options)
+
+	resp, err = scope.InfraCluster.ProxmoxClient.CloneVM(ctx, int(templateID), options)
+
+	return
 }
 
 func getVMID(ctx context.Context, scope *scope.MachineScope) (int64, error) {
