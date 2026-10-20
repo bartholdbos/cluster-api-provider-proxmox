@@ -40,6 +40,7 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - proxmoxclusters
+  - proxmoximports
   - proxmoxmachines
   verbs:
   - create
@@ -53,6 +54,7 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - proxmoxclusters/finalizers
+  - proxmoximports/finalizers
   - proxmoxmachines/finalizers
   verbs:
   - update
@@ -60,6 +62,7 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - proxmoxclusters/status
+  - proxmoximports/status
   - proxmoxmachines/status
   verbs:
   - get

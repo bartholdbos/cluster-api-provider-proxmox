@@ -206,6 +206,14 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager, proxmoxClient capmo
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setting up ProxmoxMachine controller: %w", err)
 	}
+	if err := (&controller.ProxmoxImportReconciler{
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		Recorder:      mgr.GetEventRecorderFor("proxmoximport-controller"),
+		ProxmoxClient: proxmoxClient,
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setting up ProxmoxImport controller: %w", err)
+	}
 
 	return nil
 }

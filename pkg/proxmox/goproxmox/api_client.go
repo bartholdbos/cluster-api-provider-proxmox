@@ -436,3 +436,21 @@ func (c *APIClient) QemuAgentStatus(ctx context.Context, vm *proxmox.VirtualMach
 
 	return nil
 }
+
+func (c *APIClient) Download(ctx context.Context, nodename string, url *url.URL) (*proxmox.Task, error) {
+	node := (&proxmox.Node{}).New(c.Client, nodename)
+
+	options := &proxmox.StorageDownloadURLOptions{
+		Content:  "import",
+		Storage:  "local",
+		Filename: url.Path,
+		URL:      url.String(),
+	}
+
+	ret, err := node.StorageDownloadURL(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return proxmox.NewTask(proxmox.UPID(ret), c.Client), nil
+}

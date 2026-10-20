@@ -19,6 +19,7 @@ package proxmox
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/luthermonson/go-proxmox"
 )
@@ -57,4 +58,6 @@ type Client interface {
 	CloudInitStatus(ctx context.Context, vm *proxmox.VirtualMachine) (bool, error)
 
 	QemuAgentStatus(ctx context.Context, vm *proxmox.VirtualMachine) error
+
+	Download(ctx context.Context, nodename string, url *url.URL) (*proxmox.Task, error)
 }
